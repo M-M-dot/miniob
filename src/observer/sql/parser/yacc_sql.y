@@ -4,8 +4,9 @@
 #include "sql/parser/parse_defs.h"
 #include "sql/parser/yacc_sql.tab.h"
 #include "sql/parser/lex.yy.h"
+#include <time.h>
 // #include "common/log/log.h" // 包含C++中的头文件
-
+#include <time.h>
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
@@ -83,6 +84,7 @@ ParserContext *get_context(yyscan_t scanner)
         INT_T
         STRING_T
         FLOAT_T
+		DATE_T
         HELP
         EXIT
         DOT //QUOTE
@@ -110,11 +112,13 @@ ParserContext *get_context(yyscan_t scanner)
   char *string;
   int number;
   float floats;
+  time_t dates;
 	char *position;
 }
 
 %token <number> NUMBER
 %token <floats> FLOAT 
+%token <string> DATE
 %token <string> ID
 %token <string> PATH
 %token <string> SSS
@@ -125,7 +129,8 @@ ParserContext *get_context(yyscan_t scanner)
 %type <number> type;
 %type <condition1> condition;
 %type <value1> value;
-%type <number> number;
+%type <number> number; 
+
 
 %%
 
@@ -268,6 +273,7 @@ type:
 	INT_T { $$=INTS; }
        | STRING_T { $$=CHARS; }
        | FLOAT_T { $$=FLOATS; }
+	   | DATE_T {$$=DATES;}
        ;
 ID_get:
 	ID 
@@ -302,16 +308,25 @@ value_list:
 	  }
     ;
 value:
+	/*TODO */
     NUMBER{	
   		value_init_integer(&CONTEXT->values[CONTEXT->value_length++], $1);
 		}
     |FLOAT{
   		value_init_float(&CONTEXT->values[CONTEXT->value_length++], $1);
 		}
+	|DATE{
+			$1 = substr($1,1,strlen($1)-2);
+		printf("parse sql  value is date");
+  		value_init_date(&CONTEXT->values[CONTEXT->value_length++], $1);
+		}
     |SSS {
 			$1 = substr($1,1,strlen($1)-2);
+		printf("parse sql  value is chars");
   		value_init_string(&CONTEXT->values[CONTEXT->value_length++], $1);
+
 		}
+
     ;
     
 delete:		/*  delete 语句的语法解析树*/
@@ -358,17 +373,35 @@ select_attr:
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, "*");
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_aggs(&CONTEXT->ssql->sstr.selection,NULL);
+
 		}
     | ID attr_list {
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, $1);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_aggs(&CONTEXT->ssql->sstr.selection,NULL);
 		}
   	| ID DOT ID attr_list {
 			RelAttr attr;
 			relation_attr_init(&attr, $1, $3);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_aggs(&CONTEXT->ssql->sstr.selection,NULL);
 		}
+
+	| ID LBRACE ID RBRACE{
+		RelAttr attr;
+		relation_attr_init(&attr, NULL, $3);
+		selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		selects_append_aggs(&CONTEXT->ssql->sstr.selection,$1);
+	}
+	| ID LBRACE ID DOT ID RBRACE{
+		RelAttr attr;
+		relation_attr_init(&attr, $3, $5);
+		selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		selects_append_aggs(&CONTEXT->ssql->sstr.selection,$1);
+
+	}
     ;
 attr_list:
     /* empty */

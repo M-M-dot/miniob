@@ -18,7 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 #include "storage/common/condition_filter.h"
 #include "sql/executor/tuple.h"
-
+// #include  
 class Table;
 class Trx;
 
@@ -43,6 +43,8 @@ private:
   Table  * table_;
   TupleSchema  tuple_schema_;
   std::vector<DefaultConditionFilter *> condition_filters_;
+  // AggType aggregation_{0};
+
 };
 
 #endif //__OBSERVER_SQL_EXECUTOR_EXECUTION_NODE_H_

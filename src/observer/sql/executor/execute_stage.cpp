@@ -223,6 +223,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   const Selects &selects = sql->sstr.selection;
   // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点
   std::vector<SelectExeNode *> select_nodes;
+  // 遍历selects中的所有的表，对于每个table_name，生成Exenode 
   for (size_t i = 0; i < selects.relation_num; i++) {
     const char *table_name = selects.relations[i];
     SelectExeNode *select_node = new SelectExeNode;
@@ -235,6 +236,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       end_trx_if_need(session, trx, false);
       return rc;
     }
+    //让rc 成功了，则将select_node push到select_nodes 
     select_nodes.push_back(select_node);
   }
 
@@ -244,6 +246,9 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     return RC::SQL_SYNTAX;
   }
 
+  /*
+   *对于执行每个select_node，然后返回tuple_set. 并将tuple_set 存入vector tuple_sets 
+   */
   std::vector<TupleSet> tuple_sets;
   for (SelectExeNode *&node: select_nodes) {
     TupleSet tuple_set;
@@ -258,11 +263,80 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       tuple_sets.push_back(std::move(tuple_set));
     }
   }
-
+  
   std::stringstream ss;
   if (tuple_sets.size() > 1) {
     // 本次查询了多张表，需要做join操作
-  } else {
+
+
+
+  } else if (selects.aggregation!= AGGUNDEFINED){
+    TupleSet tuple_set = std::move(tuple_sets.front());  
+    TupleSet agg_tuple_set; 
+    Tuple t;
+    switch(selects.aggregation){
+      case MAX: {
+         int max_index; 
+         for(int i = 0; i<tuple_set.size();i++){
+           if(tuple_set.get(max_index).get(0).compare(tuple_set.get(i).get(0))<0)
+              max_index = i;
+         }
+        agg_tuple_set.add(const_cast<Tuple&&>(tuple_set.get(max_index)));
+      }
+      break;
+      case MIN:{
+         int min_index; 
+         for(int i = 0; i<tuple_set.size();i++){
+           if(tuple_set.get(min_index).get(0).compare(tuple_set.get(i).get(0))>0)
+              min_index = i;
+         }
+        agg_tuple_set.add(const_cast<Tuple&&>(tuple_set.get(min_index)));
+      }
+      break;
+      case COUNT: {
+          int count = tuple_set.size(); 
+          t.add(count);
+          agg_tuple_set.add(std::move(t)); 
+      }
+      break;
+      case AVG:{
+         AttrType type = tuple_set.schema().field(0).type();
+        if(type!=INTS && type!=FLOATS){
+          std::cout<<("the type can not average")<<std::endl;
+          break;
+        }
+        if(type == INTS){
+          int sum_ = 0;
+          for(int i = 0; i<tuple_set.size();i++){
+              const IntValue& value = (const IntValue &)tuple_set.get(i).get(0);
+              sum_ = sum_ + value.get();  
+          }
+          t.add(sum_/tuple_set.size());
+        }else{// type = FLOATS
+          float sum_ = 0; 
+          for(int i = 0; i<tuple_set.size();i++){
+              const FloatValue & value = (const FloatValue &)tuple_set.get(i).get(0);
+              sum_ = sum_ + value.get();
+          }
+          t.add(sum_/tuple_set.size());
+        }
+        
+      }
+      break; 
+      case AGGUNDEFINED:
+      default: {
+          LOG_ERROR("the type is not defined!");
+          session_event->set_response("this type of aggregation is not exist");
+          end_trx_if_need(session, trx, true);
+          return rc;
+        }
+    }
+    TupleSet out_tupleset; 
+    out_tupleset.add(std::move(t)); 
+    out_tupleset.set_schema(tuple_set.get_schema());
+    out_tupleset.print(ss);
+  }
+  else {
     // 当前只查询一张表，直接返回结果即可
     tuple_sets.front().print(ss);
   }
@@ -311,12 +385,14 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
         // 列出这张表所有字段
         TupleSchema::from_table(table, schema);
         break; // 没有校验，给出* 之后，再写字段的错误
-      } else {
+      } 
+      else {
         // 列出这张表相关字段
         RC rc = schema_add_field(table, attr.attribute_name, schema);
         if (rc != RC::SUCCESS) {
           return rc;
         }
+      
       }
     }
   }
@@ -343,6 +419,6 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
       condition_filters.push_back(condition_filter);
     }
   }
-
+  
   return select_node.init(trx, table, std::move(schema), std::move(condition_filters));
 }

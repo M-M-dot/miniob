@@ -366,6 +366,7 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit, void *contex
 
   int record_count = 0;
   Record record;
+  //TODO
   rc = scanner.get_first_record(&record);
   for ( ; RC::SUCCESS == rc && record_count < limit; rc = scanner.get_next_record(&record)) {
     if (trx == nullptr || trx->is_visible(this, &record)) {

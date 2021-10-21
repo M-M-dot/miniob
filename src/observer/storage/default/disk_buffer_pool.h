@@ -82,6 +82,7 @@ public:
     this->size = size;
     frame = new Frame[size];
     allocated = new bool[size];
+    allocated_size = 0;
     for (int i = 0; i < size; i++) {
       allocated[i] = false;
       frame[i].pin_count = 0;
@@ -97,21 +98,61 @@ public:
   }
 
   Frame *alloc() {
-    return nullptr; // TODO for test
+    /*
+     * 判断当前的frame的长度和size, 如果>size 则遍历frame 寻找一个最大的acctime 进行抛弃，如果<size 则直接插入
+     * 新分配一个frame, 设置它的初始值和page内容。 将这个frame加入frame list
+     */
+    if(allocated_size <size){ 
+      for(int i = 0;i<size;i++){ 
+        if(allocated[i]==false){
+          frame[i].dirty = false; 
+          frame[i].file_desc = 0; 
+          frame[i].acc_time = current_time(); 
+          allocated[i] = true; 
+          allocated_size ++;
+          return &frame[i];
+        }
+      }
+      return nullptr; 
+    }else{ 
+      int index_min_acc = 0; 
+      for(int i = 0;i<size;i++){ 
+        if(frame[i].acc_time<frame[index_min_acc].acc_time){
+          index_min_acc = i; 
+        }
+      }
+      // 修改index_min_acc 中的frame. 
+       frame[index_min_acc].acc_time = current_time(); 
+      return &frame[index_min_acc];
+    }
   }
 
   Frame *get(int file_desc, PageNum page_num) {
-    return nullptr; // TODO for test
+    /* 
+     *  遍历frame, 寻找对应的page_num 如果page_num 不存在，
+     */
+    for(int i = 0; i<size; i++){
+      if(frame[i].file_desc == file_desc && frame[i].page.page_num == page_num){
+        frame[i].acc_time = current_time(); 
+        return &frame[i]; 
+      }
+    }
+    return nullptr; 
   }
 
   Frame *getFrame() { return frame; }
 
   bool *getAllocated() { return allocated; }
-
+  unsigned long current_time(){
+    struct timespec tp;
+    clock_gettime(CLOCK_MONOTONIC, &tp);
+    return tp.tv_sec * 1000 * 1000 * 1000UL + tp.tv_nsec;
+  }
 public:
+  int allocated_size;
   int size;
   Frame * frame = nullptr;
-  bool *allocated = nullptr;
+  bool *allocated = nullptr; // 用于判断这个frame 是否被分配
 };
 
 class DiskBufferPool {

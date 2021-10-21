@@ -55,7 +55,10 @@ void Tuple::add(float value) {
 void Tuple::add(const char *s, int len) {
   add(new StringValue(s, len));
 }
-
+void Tuple::add(const char *s, int len , int date) {
+  if(date ==1) add(new DateValue(s,len)); 
+  else add(new StringValue(s, len));
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string TupleField::to_string() const {
@@ -230,6 +233,11 @@ void TupleRecordConverter::add_record(const char *record) {
       }
         break;
       case CHARS: {
+        const char *s = record + field_meta->offset();  // 现在当做Cstring来处理
+        tuple.add(s, strlen(s));
+      }
+      break;
+      case DATES: {
         const char *s = record + field_meta->offset();  // 现在当做Cstring来处理
         tuple.add(s, strlen(s));
       }

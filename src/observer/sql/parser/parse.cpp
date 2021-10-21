@@ -16,7 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse.h"
 #include "rc.h"
 #include "common/log/log.h"
-
+#include <regex.h>
 RC parse(char *st, Query *sqln);
 
 #ifdef __cplusplus
@@ -43,14 +43,38 @@ void value_init_integer(Value *value, int v) {
   value->data = malloc(sizeof(v));
   memcpy(value->data, &v, sizeof(v));
 }
+
 void value_init_float(Value *value, float v) {
   value->type = FLOATS;
   value->data = malloc(sizeof(v));
   memcpy(value->data, &v, sizeof(v));
 }
 void value_init_string(Value *value, const char *v) {
-  value->type = CHARS;
+  LOG_INFO("parser.cpp  value_init_string");
+  int cflags = REG_EXTENDED;
+  int status;
+  const size_t nmatch = 1; 
+  regmatch_t pmatch[1];
+  const char* pattern = "\"[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}]\"";
+  regex_t reg;
+  regcomp(&reg,pattern,cflags); 
+  status = regexec(&reg,v,nmatch,pmatch,0);
+  if(status == REG_NOMATCH)  {
+    LOG_INFO("value type is chars");
+    value->type = CHARS;
+  }
+  else {
+    LOG_INFO("value type is dates");
+    value->type = DATES;
+  }
   value->data = strdup(v);
+}
+void value_init_date(Value *value, const char *v) {
+  //TODO
+  LOG_INFO("parser.cpp  value_init_date");
+  value->type = DATES;
+  value->data = malloc(sizeof(v));
+  memcpy(value->data, &v, sizeof(v));
 }
 void value_destroy(Value *value) {
   value->type = UNDEFINED;
@@ -98,7 +122,7 @@ void attr_info_destroy(AttrInfo *attr_info) {
   free(attr_info->name);
   attr_info->name = nullptr;
 }
-
+/*select*/
 void selects_init(Selects *selects, ...);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr) {
   selects->attributes[selects->attr_num++] = *rel_attr;
@@ -114,7 +138,14 @@ void selects_append_conditions(Selects *selects, Condition conditions[], size_t 
   }
   selects->condition_num = condition_num;
 }
-
+void selects_append_aggs(Selects *selects, const char *agg_name){
+  if (agg_name==nullptr) {selects->aggregation = AGGUNDEFINED; return;}
+  if(0==strcmp(agg_name,"min")||0==strcmp(agg_name,"MIN")) selects->aggregation = MIN; 
+  else if (0==strcmp(agg_name,"max")||0==strcmp(agg_name,"MAX")) selects->aggregation = AggType::MAX; 
+  else if (0==strcmp(agg_name,"avg")||0==strcmp(agg_name,"AVG")) selects->aggregation = AggType::AVG; 
+  else if (0==strcmp(agg_name,"count")||0==strcmp(agg_name,"COUNT")) selects->aggregation = AggType::COUNT; 
+  else selects->aggregation = AGGUNDEFINED;
+}
 void selects_destroy(Selects *selects) {
   for (size_t i = 0; i < selects->attr_num; i++) {
     relation_attr_destroy(&selects->attributes[i]);

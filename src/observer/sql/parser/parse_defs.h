@@ -16,7 +16,7 @@ See the Mulan PSL v2 for more details. */
 #define __OBSERVER_SQL_PARSER_PARSE_DEFS_H__
 
 #include <stddef.h>
-
+#include <time.h>
 #define MAX_NUM 20
 #define MAX_REL_NAME 20
 #define MAX_ATTR_NAME 20
@@ -38,9 +38,10 @@ typedef enum {
   GREAT_THAN,   //">"     5
   NO_OP
 } CompOp;
-
-//属性值类型
-typedef enum { UNDEFINED, CHARS, INTS, FLOATS } AttrType;
+//聚合操作的类型
+typedef enum { AGGUNDEFINED, MAX, MIN, COUNT, AVG } AggType;
+//属性值类型S
+typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES } AttrType;
 
 //属性值
 typedef struct _Value {
@@ -68,6 +69,7 @@ typedef struct {
   char *    relations[MAX_NUM];     // relations in From clause
   size_t    condition_num;          // Length of conditions in Where clause
   Condition conditions[MAX_NUM];    // conditions in Where clause
+  AggType    aggregation;            // the keyword of aggregation  
 } Selects;
 
 // struct of insert
@@ -179,6 +181,8 @@ extern "C" {
 
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name);
 void relation_attr_destroy(RelAttr *relation_attr);
+//TODO 
+void value_init_date(Value *value, const char *v);
 
 void value_init_integer(Value *value, int v);
 void value_init_float(Value *value, float v);

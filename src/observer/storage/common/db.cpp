@@ -57,7 +57,7 @@ RC Db::create_table(const char *table_name, int attribute_count, const AttrInfo 
   if (opened_tables_.count(table_name) != 0) {
     return RC::SCHEMA_TABLE_EXIST;
   }
-
+  // c_str 将字符串变成字符
   std::string table_file_path = table_meta_file(path_.c_str(), table_name); // 文件路径可以移到Table模块
   Table *table = new Table();
   rc = table->create(table_file_path.c_str(), table_name, path_.c_str(), attribute_count, attributes);
